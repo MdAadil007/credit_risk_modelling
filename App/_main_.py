@@ -8,7 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🏦 Credit Risk Modelling")
+st.title("🏦Credit Risk Modelling")
 st.markdown("Fill in the applicant details to predict default probability and credit score.")
 st.divider()
 
@@ -80,4 +80,3 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
         st.warning(f"⚠️ Average ({credit_score}) — Elevated risk. Review carefully.")
     else:
         st.error(f"🔴 Poor ({credit_score}) — High default risk. Recommend rejection.")
-        

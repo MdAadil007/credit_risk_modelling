@@ -35,7 +35,7 @@ def prepare_input(age, income, loan_amount, loan_tenure_months,
         'number_of_open_accounts'  : num_open_accounts,
         'credit_utilization_ratio' : credit_utilization_ratio,
         'loan_to_income'           : loan_to_income,
-        'deliquency_ratio'         : deliquency_ratio,   # typo from notebook preserved
+        'deliquency_ratio'         : deliquency_ratio,   # note: typo from notebook preserved
         'avg_dpd_per_deliquency'   : avg_dpd_per_deliquency,
         # ── Categorical (not scaled — handled by get_dummies) ─────────────
         'loan_purpose'             : loan_purpose,
