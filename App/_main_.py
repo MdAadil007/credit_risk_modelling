@@ -8,7 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🏦Credit Risk Modelling")
+st.title("🏦 Credit Risk Modelling")
 st.markdown("Fill in the applicant details to predict default probability and credit score.")
 st.divider()
 
@@ -19,7 +19,7 @@ row3 = st.columns(3)
 row4 = st.columns(3)
 
 with row1[0]:
-    age = st.number_input("Age", min_value=18, max_value=100, step=1, value=28)
+    age = st.number_input("Age", min_value=18, max_value=70, step=1, value=28)
 with row1[1]:
     income = st.number_input("Income (₹)", min_value=1, value=1200000, step=10000)
 with row1[2]:
@@ -32,16 +32,21 @@ with row2[0]:
     st.markdown(f"### {loan_to_income_ratio}")
 
 with row2[1]:
-    loan_tenure_months = st.number_input("Loan Tenure (months)", min_value=1, max_value=360, step=1, value=36)
+    # Training data range: 6–59 months
+    loan_tenure_months = st.number_input("Loan Tenure (months)", min_value=6, max_value=59, step=1, value=36)
 with row2[2]:
-    avg_dpd_per_deliquency = st.number_input("Avg DPD per Delinquency", min_value=0, value=20, step=1)
+    # Training data range: 0–10 (avg days past due per delinquency event)
+    avg_dpd_per_deliquency = st.number_input("Avg DPD per Delinquency", min_value=0, max_value=10, step=1, value=5)
 
 with row3[0]:
-    deliquency_ratio = st.number_input("Delinquency Ratio", min_value=0, max_value=100, step=1, value=30)
+    # deliquency_ratio is a fraction 0.0–1.0 in the model (delinquent_months / total_loan_months)
+    deliquency_ratio = st.slider("Delinquency Ratio", min_value=0.0, max_value=1.0, step=0.01, value=0.3,
+                                  help="Fraction of loan months with a delinquency (0 = never missed, 1 = always missed)")
 with row3[1]:
-    credit_utilization_ratio = st.number_input("Credit Utilization Ratio", min_value=0, max_value=100, step=1, value=30)
+    credit_utilization_ratio = st.number_input("Credit Utilization Ratio (%)", min_value=0, max_value=99, step=1, value=30)
 with row3[2]:
-    num_open_accounts = st.number_input("Open Loan Accounts", min_value=0, max_value=20, step=1, value=2)
+    # Training data range: 1–4
+    num_open_accounts = st.number_input("Open Loan Accounts", min_value=1, max_value=4, step=1, value=2)
 
 with row4[0]:
     residence_type = st.selectbox("Residence Type", ["Owned", "Rented", "Mortgage"])
@@ -80,3 +85,4 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
         st.warning(f"⚠️ Average ({credit_score}) — Elevated risk. Review carefully.")
     else:
         st.error(f"🔴 Poor ({credit_score}) — High default risk. Recommend rejection.")
+        
