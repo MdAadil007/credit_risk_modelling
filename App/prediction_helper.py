@@ -4,77 +4,76 @@ import pandas as pd
 
 # ── Load artifacts ────────────────────────────────────────────────────────────
 model_data    = joblib.load("Artifacts/model_data.joblib")
-model         = model_data['model']
-scaler        = model_data['scaler']
-features      = list(model_data['features'])
-cols_to_scale = list(model_data['cols_to_scale'])
+model         = model_data['model']          # LogisticRegression
+scaler        = model_data['scaler']         # MinMaxScaler
+features      = list(model_data['features']) # 13 final feature columns (exact order)
+cols_to_scale = model_data['cols_to_scale']  # 18 numeric cols scaler was fitted on
 
 
 def prepare_input(age, income, loan_amount, loan_tenure_months,
                   avg_dpd_per_deliquency, deliquency_ratio,
                   credit_utilization_ratio, num_open_accounts,
                   residence_type, loan_purpose, loan_type):
+    """
+    Replicates notebook pipeline exactly:
+      1. Compute loan_to_income from raw inputs
+      2. Build full DataFrame with ALL cols_to_scale columns present
+         (dummy values for cols dropped later — needed only for scaler.transform)
+      3. Scale numeric cols with saved MinMaxScaler
+      4. One-hot encode categorical columns (drop_first=True)
+      5. Select & reorder to match training feature order
+    """
 
     loan_to_income = round(loan_amount / income, 2) if income > 0 else 0
 
-    # Build exact 18-col numeric DataFrame the scaler was fitted on
-    # Columns and order must match cols_to_scale exactly:
-    # age, number_of_dependants, years_at_current_address, zipcode,
-    # sanction_amount, processing_fee, gst, net_disbursement,
-    # loan_tenure_months, principal_outstanding, bank_balance_at_application,
-    # number_of_open_accounts, number_of_closed_accounts, enquiry_count,
-    # credit_utilization_ratio, loan_to_income, deliquency_ratio, avg_dpd_per_deliquency
-    scale_df = pd.DataFrame([{
-        'age'                        : age,
-        'number_of_dependants'       : 0,
-        'years_at_current_address'   : 0,
-        'zipcode'                    : 0,
-        'sanction_amount'            : 0,
-        'processing_fee'             : 0,
-        'gst'                        : 0,
-        'net_disbursement'           : 0,
-        'loan_tenure_months'         : loan_tenure_months,
-        'principal_outstanding'      : 0,
-        'bank_balance_at_application': 0,
-        'number_of_open_accounts'    : num_open_accounts,
-        'number_of_closed_accounts'  : 0,
-        'enquiry_count'              : 0,
-        'credit_utilization_ratio'   : credit_utilization_ratio,
-        'loan_to_income'             : loan_to_income,
-        'deliquency_ratio'           : deliquency_ratio,
-        'avg_dpd_per_deliquency'     : avg_dpd_per_deliquency,
-    }])[cols_to_scale]  # enforce exact column order scaler was fitted on
-
-    # Scale
-    scaled_array = scaler.transform(scale_df)
-    scaled_df    = pd.DataFrame(scaled_array, columns=cols_to_scale)
-
-    # Build final row: scaled numerics + raw categoricals
-    final_row = {
-        'age'                      : scaled_df['age'].iloc[0],
-        'loan_tenure_months'       : scaled_df['loan_tenure_months'].iloc[0],
-        'number_of_open_accounts'  : scaled_df['number_of_open_accounts'].iloc[0],
-        'credit_utilization_ratio' : scaled_df['credit_utilization_ratio'].iloc[0],
-        'loan_to_income'           : scaled_df['loan_to_income'].iloc[0],
-        'deliquency_ratio'         : scaled_df['deliquency_ratio'].iloc[0],
-        'avg_dpd_per_deliquency'   : scaled_df['avg_dpd_per_deliquency'].iloc[0],
+    # Build row with all columns that were present when scaler was fitted
+    # Dummy values for columns not used in final model (needed for scaler shape)
+    input_data = {
+        # ── Columns used in final model ──────────────────────────────────────
+        'age'                      : age,
+        'loan_tenure_months'       : loan_tenure_months,
+        'number_of_open_accounts'  : num_open_accounts,
+        'credit_utilization_ratio' : credit_utilization_ratio,
+        'loan_to_income'           : loan_to_income,
+        'deliquency_ratio'         : deliquency_ratio,   # typo from notebook preserved
+        'avg_dpd_per_deliquency'   : avg_dpd_per_deliquency,
+        # ── Categorical (not scaled — handled by get_dummies) ─────────────
         'loan_purpose'             : loan_purpose,
         'residence_type'           : residence_type,
         'loan_type'                : loan_type,
+        # ── Dummy numeric cols required by scaler (dropped after scaling) ──
+        'number_of_dependants'          : 0,
+        'years_at_current_address'      : 0,
+        'zipcode'                       : 0,
+        'sanction_amount'               : 0,
+        'processing_fee'                : 0,
+        'gst'                           : 0,
+        'net_disbursement'              : 0,
+        'principal_outstanding'         : 0,
+        'bank_balance_at_application'   : 0,
+        'number_of_closed_accounts'     : 0,
+        'enquiry_count'                 : 0,
     }
 
-    df = pd.DataFrame([final_row])
+    df = pd.DataFrame([input_data])
 
-    # One-hot encode (drop_first=True matches training)
+    # Scale only the numeric columns (same set scaler was fitted on)
+    df[cols_to_scale] = scaler.transform(df[cols_to_scale])
+
+    # One-hot encode categorical columns — drop_first=True matches training
     df = pd.get_dummies(df, drop_first=True)
 
-    # Align to exact 13-column training order
+    # Align to exact training column order; fill any missing OHE cols with 0
     df = df.reindex(columns=features, fill_value=0)
 
     return df
 
 
 def calculate_credit_score(input_df, base_score=300, scale_length=600):
+    """
+    Manually computes logit → sigmoid (matches reference code exactly).
+    Returns: (default_probability float, credit_score int, rating str)
+    """
     x = np.dot(input_df.values, model.coef_.T) + model.intercept_
 
     default_probability     = 1 / (1 + np.exp(-x))
@@ -105,7 +104,10 @@ def predict(age, income, loan_amount, loan_tenure_months,
             avg_dpd_per_deliquency, deliquency_ratio,
             credit_utilization_ratio, num_open_accounts,
             residence_type, loan_purpose, loan_type):
-
+    """
+    Main entry point called by main.py.
+    Returns: (default_probability, credit_score, rating)
+    """
     input_df = prepare_input(
         age, income, loan_amount, loan_tenure_months,
         avg_dpd_per_deliquency, deliquency_ratio,
